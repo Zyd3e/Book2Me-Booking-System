@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: book2me_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: example_root_pass
+      MYSQL_DATABASE: book2me_db
+      MYSQL_USER: book2me
+      MYSQL_PASSWORD: example_pass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: book2me_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Ensure backend connects to the db service
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: book2me_db
+      DB_USER: book2me
+      DB_PASSWORD: example_pass
+      FLASK_ENV: production
+      SECRET_KEY: super-secret-key-change-me
+      JWT_SECRET_KEY: jwt-secret-change-me
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: book2me_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: example_root_pass
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+
+volumes:
+  db_data:
